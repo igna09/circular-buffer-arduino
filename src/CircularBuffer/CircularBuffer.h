@@ -2,15 +2,16 @@
 #define __CIRCULAR_BUFFER_H__
 
 #include <Arduino.h>
+
 #include <BaseClass.h>
 
-#define MAX_SIZE 50
+#include <LinkedList.h>
 
 template <class T>
 class CircularBuffer : BaseClass {
     private:
-        T _messages[MAX_SIZE];
-        int _size;
+        MyLinkedList::LinkedList<T> _elements;
+        int _maxSize;
         int _lastItemIndex;
         void _increaseNextItemIndex() {
             BaseClass::_acquireMutex();
@@ -21,31 +22,55 @@ class CircularBuffer : BaseClass {
     public:
         CircularBuffer(int size) {
             _lastItemIndex = -1;
-            if(size < MAX_SIZE) {
-                _size = size;
-            } else {
-                _size = MAX_SIZE;
+            _maxSize = size;
+            _elements = MyLinkedList::LinkedList<T>();
+            for(int i = 0; i < _maxSize; i++) {
+                _elements.add(T());
             }
         };
-        void _init() {}; // this method is not necessary as constructor does not have parameters
-        void storeMessage(T message) {
+        void _init() {}; // this method is not necessary because is not a singleton
+        void storeElement(T element) {
             _increaseNextItemIndex();
             BaseClass::_acquireMutex();
-            _messages[_lastItemIndex % _size] = message;
+            _elements.add(_lastItemIndex % _maxSize, element);
             BaseClass::_releaseMutex();
         };
-        T getMessage(int index) {
-            if(index >= 0 && index < _size) {
-                return _messages[index];
-            } else {
-                return "";
-            }
+        T getElement(int index) {
+            return _elements.get(index);
+        };
+        bool setElement(T element, int index) {
+            return _elements.set(index, element);
         };
         int getLastItemIndex() {
             return _lastItemIndex;
         };
         int size() {
-            return _size;
+            return _maxSize;
+        };
+        void setSize(int size) {
+            BaseClass::_acquireMutex();
+            if(size < _maxSize) {
+                for(int i = 0; i < (_maxSize - size); i++) {
+                    _elements.pop();
+                }
+            } else if(size > _maxSize) {
+                for(int i = 0; i < (size - _maxSize); i++) {
+                    _elements.add(T());
+                }
+            }
+            //_elements._size = size;
+            _maxSize = size;
+            BaseClass::_releaseMutex();
+        };
+        void removeFirst() {
+            BaseClass::_acquireMutex();
+            _elements.shift();
+            BaseClass::_releaseMutex();
+        }
+        void removeLast() {
+            BaseClass::_acquireMutex();
+            _elements.pop();
+            BaseClass::_releaseMutex();
         }
 };
 
